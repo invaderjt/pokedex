@@ -1,23 +1,37 @@
 package main
 
 import (
-	"encoding/json"
+	"bufio"
 	"fmt"
-	"net/http"
 	"os"
 	"strings"
+
+	"github.com/invaderjt/pokedex/internal/pokeapi"
 )
 
-type Config struct {
-	Next_Location *string
-	Prev_Location *string
+func startRepl(config *Config) {
+	scanner := bufio.NewScanner(os.Stdin)
+	for {
+		fmt.Print("Pokedex > ")
+		if !scanner.Scan() {
+			fmt.Printf("Invalid input: %v\n", scanner.Err())
+			continue
+		}
+		input := cleanInput(scanner.Text())[0]
+		commands := getCommands()
+		if command, ok := commands[input]; ok {
+			command.callback(config)
+			continue
+		} else {
+			fmt.Println("Unknown command")
+		}
+	}
 }
 
-var first_location = "https://pokeapi.co/api/v2/location-area/"
-
-var config = Config{
-	Next_Location: &first_location,
-	Prev_Location: nil,
+type Config struct {
+	pokeapiClient pokeapi.Client
+	nextLocation  *string
+	prevLocation  *string
 }
 
 func cleanInput(text string) []string {
@@ -31,10 +45,7 @@ func commandExit(config *Config) error {
 }
 
 func commandHelp(config *Config) error {
-	fmt.Println()
-	fmt.Println("Welcome to the Pokedex!")
-	fmt.Println("Usage:")
-	fmt.Println()
+	fmt.Print("\nWelcome to the Pokedex!\nUsage:\n\n")
 	for _, cmd := range getCommands() {
 		fmt.Printf("%s: %s\n", cmd.name, cmd.description)
 	}
@@ -43,32 +54,25 @@ func commandHelp(config *Config) error {
 }
 
 func commandMap(config *Config) error {
-	resp, err := http.Get(*config.Next_Location)
+	locationsResp, err := config.pokeapiClient.LocationsList(config.nextLocation)
 	if err != nil {
 		return err
 	}
 
-	var locations Locations
-	decoder := json.NewDecoder(resp.Body)
-	if err := decoder.Decode(&locations); err != nil {
-		return err
-	}
+	config.nextLocation = locationsResp.Next
+	config.prevLocation = locationsResp.Previous
 
-	config.Next_Location = &locations.Next
-	config.Prev_Location = &locations.Previous
-
-	for _, location := range locations.Results {
+	for _, location := range locationsResp.Results {
 		fmt.Println(location.Name)
 	}
 	return nil
 }
 
 func commandMapb(config *Config) error {
-	if *config.Prev_Location == "" {
+	if config.prevLocation == nil {
 		fmt.Println("you're on the first page")
 		return nil
 	}
-	config.Next_Location = config.Prev_Location
+	config.nextLocation = config.prevLocation
 	return commandMap(config)
-
 }
