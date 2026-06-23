@@ -23,20 +23,28 @@ func (c *Client) LocationsList(pageURL *string) (Locations, error) {
 		url = *pageURL
 	}
 
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return Locations{}, err
-	}
+	var data []byte
+	var err error
 
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return Locations{}, err
-	}
-	defer resp.Body.Close()
+	if val, ok := c.pokeCache.Get(url); ok {
+		data = val
+	} else {
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			return Locations{}, err
+		}
 
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return Locations{}, err
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			return Locations{}, err
+		}
+		defer resp.Body.Close()
+
+		data, err = io.ReadAll(resp.Body)
+		if err != nil {
+			return Locations{}, err
+		}
+		c.pokeCache.Add(url, data)
 	}
 
 	locations := Locations{}
