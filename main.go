@@ -15,8 +15,9 @@ func main() {
 			continue
 		}
 		input := cleanInput(scanner.Text())[0]
-		if _, ok := commands[input]; ok {
-			commands[input].callback()
+		commands := getCommands()
+		if command, ok := commands[input]; ok {
+			command.callback(&config)
 			continue
 		} else {
 			fmt.Println("Unknown command")
