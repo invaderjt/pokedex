@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"math/rand"
 	"os"
 	"strings"
 
@@ -37,6 +38,7 @@ type Config struct {
 	pokeapiClient pokeapi.Client
 	nextLocation  *string
 	prevLocation  *string
+	myPokedex     map[string]pokeapi.Pokemon
 }
 
 func cleanInput(text string) []string {
@@ -101,4 +103,63 @@ func commandExplore(config *Config, args ...string) error {
 		fmt.Printf(" - %s\n", pokemon.Pokemon.Name)
 	}
 	return nil
+}
+
+func commandCatch(config *Config, args ...string) error {
+	if len(args) < 1 {
+		fmt.Println("Please provide a pokemon name")
+		return errors.New("no pokemon name")
+	}
+	target := args[0]
+	fmt.Printf("Throwing a Pokeball at %s...\n", target)
+	pokemonResp, err := config.pokeapiClient.CheckPokemon(target)
+	if err != nil {
+		fmt.Printf("No such pokemon called %s\n", target)
+		return err
+	}
+
+	xp := pokemonResp.BaseExperience
+	catchRate := (xp / 4) + 50
+	caught := false
+	if rand.Intn(xp) < catchRate {
+		caught = true
+	}
+	if !caught {
+		fmt.Printf("%s escaped!\n", target)
+		return nil
+	}
+
+	fmt.Printf("%s was caught!\n", target)
+	config.myPokedex[target] = pokemonResp
+	fmt.Printf("%s added to PokeDex\n", target)
+	return nil
+
+}
+
+func commandInspect(config *Config, args ...string) error {
+	if len(args) < 1 {
+		fmt.Println("Please provide a pokemon name")
+		return errors.New("no pokemon name")
+	}
+
+	name := args[0]
+	if _, ok := config.myPokedex[name]; !ok {
+		fmt.Printf("You have not caught a %s\n", name)
+		return nil
+	}
+
+	pokemon := config.myPokedex[name]
+	fmt.Printf("Name: %s\n", pokemon.Name)
+	fmt.Printf("Height: %v\n", pokemon.Height)
+	fmt.Printf("Weight: %v\n", pokemon.Weight)
+	fmt.Println("Stats:")
+	for _, value := range pokemon.Stats {
+		fmt.Printf(" - %v: %v\n", value.Stat.Name, value.BaseStat)
+	}
+	fmt.Println("Type(s):")
+	for _, pkType := range pokemon.Types {
+		fmt.Printf(" - %v\n", pkType.Type.Name)
+	}
+	return nil
+
 }
